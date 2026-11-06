@@ -93,6 +93,20 @@ Run standalone Node/Bun tools that use Varlock from the owning app directory so 
   Vercel Services share project environment variables, but deploys do not upload local `.env` files automatically. Link the project with `vercel link`, then run the env sync command before your first deploy (otherwise the deployment starts with no env vars), or pass one-off envs with `vercel deploy -e KEY=value`.
   Pass Vercel CLI flags to the env sync command directly, for example: `bun run env:production --scope your-team`.
 
+### Continuous deployment
+
+With the repository connected to the Vercel project, every merge to `master` deploys to production. `scripts/vercel-build.sh` runs `convex deploy` for production builds, which builds the web app and then pushes the Convex functions. A failed build pushes nothing. Pull request previews rebuild the web app only and use the Convex URLs set for the Preview environment, so they do not receive backend changes.
+
+Set these in the Vercel project before the first production deploy:
+
+- `CONVEX_DEPLOY_KEY`: a production deploy key from the Convex dashboard, scoped to the Production environment
+- `VITE_CONVEX_SITE_URL`: the production deployment's `.convex.site` URL. `VITE_CONVEX_URL` is supplied by `convex deploy`
+- `VITE_CONVEX_URL` and `VITE_CONVEX_SITE_URL`, scoped to the Preview environment, for preview builds
+
+Set `SITE_URL` and `BETTER_AUTH_SECRET` on the production Convex deployment with `npx convex env set --prod`.
+
+Do not run `scripts/vercel-build.sh` locally with `VERCEL_ENV=production`: Convex reads `CONVEX_DEPLOYMENT` from `.env.local` and would deploy to production.
+
 For more details, see the guide on [Deploying to Vercel](https://www.better-t-stack.dev/docs/guides/vercel).
 
 ## Project Structure

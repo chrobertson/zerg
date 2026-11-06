@@ -4,7 +4,8 @@
     "web": {
       "root": "apps/web",
       "framework": "tanstack-start",
-      "installCommand": "cd ../.. && bun install"
+      "installCommand": "cd ../.. && bun install",
+      "buildCommand": "bash ../../scripts/vercel-build.sh"
     }
   },
   "rewrites": [
