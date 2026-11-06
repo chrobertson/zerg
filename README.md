@@ -1,136 +1,20 @@
-# zerg
+# Zerg
 
-This project was created with [Better-T-Stack](https://github.com/AmanVarshney01/create-better-t-stack), a modern TypeScript stack that combines React, TanStack Start, Convex, and more.
+Zerg is an AI agent software factory.
 
-## Features
+AI agents can write software, but capable agents don't add up to a reliable way of building it. Someone still has to decide how the work is organized, how the agents coordinate, and what good engineering looks like. Zerg is meant to take that on, so you direct the factory instead of managing each agent yourself.
 
-- **TypeScript** - For type safety and improved developer experience
-- **TanStack Start** - SSR framework with TanStack Router
-- **TailwindCSS** - Utility-first CSS for rapid UI development
-- **Shared UI package** - shadcn/ui primitives live in `packages/ui`
-- **Convex** - Reactive backend-as-a-service platform
-- **Authentication** - Better-Auth
-- **Turborepo** - Optimized monorepo build system
+## What it will do
 
-## Getting Started
+- **Give you one place to work with the factory.** Zerg is an app you use to interact with the factory that builds your software.
+- **Orchestrate the agents.** Zerg runs both the agents and the factory they work in.
+- **Bring strong opinions.** Zerg has a view on the right way to develop software. That view shapes the guidance agents receive and how the factory itself is architected and orchestrated.
+- **Work for any kind of software.** A web app, a mainframe system, and a video game are all valid work for the factory. The way of working carries over, whatever is being built.
 
-First, install the dependencies:
+## Status
 
-```bash
-bun install
-```
+Zerg is at the very beginning. The repository holds the application foundation, and the factory itself hasn't been built yet.
 
-## Convex Setup
+## Contributing
 
-This project uses Convex as a backend. You'll need to set up Convex before running the app:
-
-```bash
-bun run dev:setup
-```
-
-Follow the prompts to create a new Convex project and connect it to your application.
-
-Copy environment variables from `packages/backend/.env.local` to `apps/*/.env`.
-
-Then, run the development server:
-
-```bash
-bun run dev
-```
-
-Open [http://localhost:3001](http://localhost:3001) in your browser to see the web application.
-Your app will connect to the Convex cloud backend automatically.
-
-## UI Customization
-
-React web apps in this stack share shadcn/ui primitives through `packages/ui`.
-
-- Change design tokens and global styles in `packages/ui/src/styles/globals.css`
-- Update shared primitives in `packages/ui/src/components/*`
-- Adjust shadcn aliases or style config in `packages/ui/components.json` and `apps/web/components.json`
-
-### Add more shared components
-
-Run this from the project root to add more primitives to the shared UI package:
-
-```bash
-npx shadcn@latest add accordion dialog popover sheet table -c packages/ui
-```
-
-Import shared components like this:
-
-```tsx
-import { Button } from "@zerg/ui/components/button";
-```
-
-### Add app-specific blocks
-
-If you want to add app-specific blocks instead of shared primitives, run the shadcn CLI from `apps/web`.
-
-## Environment Configuration
-
-Each app owns its environment schema in `.env.schema`. Varlock generates `src/env.ts` during installation; run `bun run env:generate` after changing a schema. Commit schemas, and keep secrets in ignored env files or your deployment platform.
-
-Import the generated `ENV` accessor in application code. Shared database and auth packages receive configuration or initialized clients from the application. See [Varlock's monorepo guide](https://varlock.dev/guides/monorepos/).
-
-Bun's automatic env loading is disabled in `bunfig.toml`; the framework integration or server bootstrap loads Varlock. Node deployments must include Varlock and its dependencies alongside the app schema.
-
-Run standalone Node/Bun tools that use Varlock from the owning app directory so they load that app's schema and env files. `env:generate` only generates TypeScript files; it does not initialize environment values in a subsequent command.
-
-## Deployment
-
-### Vercel Services
-
-- Target: web
-- Config: `vercel.json`
-- Link the project first: bun run deploy:setup
-- Local Vercel dev: bun run dev:vercel
-- Sync preview env: bun run env:preview
-- Sync production env: bun run env:production
-- Dry-run check (no upload): bun run deploy:check
-- Preview deploy: bun run deploy
-- Production deploy: bun run deploy:prod
-  Vercel Services share project environment variables, but deploys do not upload local `.env` files automatically. Link the project with `vercel link`, then run the env sync command before your first deploy (otherwise the deployment starts with no env vars), or pass one-off envs with `vercel deploy -e KEY=value`.
-  Pass Vercel CLI flags to the env sync command directly, for example: `bun run env:production --scope your-team`.
-
-### Continuous deployment
-
-With the repository connected to the Vercel project, every merge to `master` deploys to production. `scripts/vercel-build.sh` runs `convex deploy` for production builds, which builds the web app and then pushes the Convex functions. A failed build pushes nothing. Pull request previews rebuild the web app only and use the Convex URLs set for the Preview environment, so they do not receive backend changes.
-
-Set these in the Vercel project before the first production deploy:
-
-- `CONVEX_DEPLOY_KEY`: a production deploy key from the Convex dashboard, scoped to the Production environment
-- `VITE_CONVEX_SITE_URL`: the production deployment's `.convex.site` URL. `VITE_CONVEX_URL` is supplied by `convex deploy`
-- `VITE_CONVEX_URL` and `VITE_CONVEX_SITE_URL`, scoped to the Preview environment, for preview builds
-
-Set `SITE_URL` and `BETTER_AUTH_SECRET` on the production Convex deployment with `npx convex env set --prod`.
-
-Do not run `scripts/vercel-build.sh` locally with `VERCEL_ENV=production`: Convex reads `CONVEX_DEPLOYMENT` from `.env.local` and would deploy to production.
-
-For more details, see the guide on [Deploying to Vercel](https://www.better-t-stack.dev/docs/guides/vercel).
-
-## Project Structure
-
-```
-zerg/
-├── apps/
-│   ├── web/         # Frontend application (React + TanStack Start)
-├── packages/
-│   ├── ui/          # Shared shadcn/ui components and styles
-│   ├── backend/     # Convex backend functions and schema
-```
-
-## Available Scripts
-
-- `bun run dev`: Start all applications in development mode
-- `bun run build`: Build all applications
-- `bun run dev:web`: Start only the web application
-- `bun run dev:setup`: Setup and configure your Convex project
-- `bun run check-types`: Check TypeScript types across all apps
-- `bun run deploy:setup`: Link this repo to a Vercel project (first-time setup)
-- `bun run dev:vercel`: Run the Vercel Services dev environment locally
-- `bun run env:preview`: Sync local env files to the Vercel preview environment
-- `bun run env:production`: Sync local env files to the Vercel production environment
-- `bun run deploy`: Create a Vercel preview deployment
-- `bun run deploy:prod`: Deploy to Vercel production
-- `bun run deploy:check`: Dry-run a deploy to preview framework detection and included files without uploading
+Zerg is developed almost entirely by AI agents. Architecture, tech stack, and development guidance live in [CLAUDE.md](CLAUDE.md).
