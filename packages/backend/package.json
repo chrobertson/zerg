@@ -12,6 +12,7 @@
     "@convex-dev/better-auth": "catalog:",
     "better-auth": "catalog:",
     "convex": "catalog:",
+    "convex-helpers": "^0.1.134",
     "zod": "catalog:"
   },
   "devDependencies": {

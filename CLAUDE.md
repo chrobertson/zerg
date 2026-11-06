@@ -10,8 +10,8 @@ Keep the README accurate too. Update it when Zerg's purpose, value, or status ch
 
 The repo is still close to the Better-T-Stack scaffold. Auth and deployment work, but there is no product code yet:
 
-- `packages/backend/convex/schema.ts` is empty.
-- `healthCheck.ts`, `privateData.ts`, the home and dashboard routes, and the "My App" title are placeholders. Replace them freely.
+- `packages/backend/convex/schema.ts` only holds workspaces and memberships.
+- `healthCheck.ts`, the home and dashboard routes, and the "My App" title are placeholders. Replace them freely.
 - There are no tests, linter, or CI yet, and the Lefthook pre-commit config has no jobs. `bun run check-types` and `bun run build` are the only automated checks, so also verify changes by running the app.
 
 ## Tech stack
@@ -37,6 +37,12 @@ scripts/           Deployment and environment scripts
 - **Dependencies point toward the app.** `apps/web` depends on `@zerg/backend` and `@zerg/ui`. Those packages don't depend on the app or on each other.
 - **Backend logic lives in Convex.** The web app calls Convex functions through the generated `api` from `@zerg/backend/convex/_generated/api`, and gets typed, reactive data in return. Don't put business logic or persistence in the web app.
 - **Auth runs inside Convex.** `convex/auth.ts` configures Better Auth and `convex/http.ts` exposes its routes. `apps/web/src/routes/api/auth/$.ts` proxies browser auth requests to it, and `__root.tsx` fetches the token for SSR. Routes under `apps/web/src/routes/_auth/` require a signed-in user. Convex functions must check auth themselves, because the route gate only protects the UI.
+- **Workspaces own data, and there is one for now.** Zerg has a single user today but is built to become multi-tenant, so keep these rules even though they look unnecessary:
+  - Every table has a `workspaceId`, including child tables, and its indexes start with it.
+  - Public functions that touch workspace data use `workspaceQuery` and `workspaceMutation` from `convex/lib/workspaceFunctions.ts`, and scope every read and write to `ctx.workspace._id`. Check `workspaceId` on any document fetched by ID.
+  - Only `memberships` stores the Better Auth user ID. Record who did something in a `createdBy` field that can also represent an agent.
+  - Secrets such as GitHub tokens and model API keys are per-workspace records, not Convex env vars. Settings belong to a workspace, and agent runs are isolated per workspace. Record usage and cost per workspace.
+- **Sign-up is closed.** `ALLOW_SIGN_UP=true` on a Convex deployment opens it. There is no sign-up form, so create accounts by POSTing to `/api/auth/sign-up/email`, unset the variable, then run `workspaces:bootstrap`.
 
 ## Working in the repo
 
@@ -73,7 +79,7 @@ bun run build
 - Commit schemas. Keep secrets in ignored env files or the deployment platform.
 - Bun's automatic env loading is off (`bunfig.toml`), because the framework integration loads Varlock. Run standalone tools that use Varlock from the app directory that owns the schema.
 - Local values live in `packages/backend/.env.local` (written by Convex) and `apps/web/.env`. The web app needs `VITE_CONVEX_URL` and `VITE_CONVEX_SITE_URL`.
-- `SITE_URL` and `BETTER_AUTH_SECRET` are set on the Convex deployment with `npx convex env set`, not in Varlock.
+- `SITE_URL` and `BETTER_AUTH_SECRET` are set on the Convex deployment with `npx convex env set`, not in Varlock. Every deployment needs both before auth works, including production. Generate the secret with `openssl rand -base64 32`.
 
 ## Deployment
 
@@ -89,4 +95,4 @@ Vercel needs these set:
 
 **Never run `scripts/vercel-build.sh` locally with `VERCEL_ENV=production`.** Convex would read `CONVEX_DEPLOYMENT` from `.env.local` and deploy to production.
 
-`bun run env:preview` and `bun run env:production` sync local env files to Vercel, and `bun run deploy:check` does a dry run.
+`bun run env:preview` and `bun run env:production` sync local env files to Vercel, and `bun run deploy:check` does a dry run. Both default to `apps/web/.env`, which points at the dev deployment, so `env:production` needs a file with production values passed explicitly.

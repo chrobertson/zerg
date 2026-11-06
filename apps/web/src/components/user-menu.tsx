@@ -1,3 +1,4 @@
+import { useNavigate } from "@tanstack/react-router";
 import { api } from "@zerg/backend/convex/_generated/api";
 import { Button } from "@zerg/ui/components/button";
 import {
@@ -15,6 +16,7 @@ import { authClient } from "@/lib/auth-client";
 
 export default function UserMenu() {
   const user = useQuery(api.auth.getCurrentUser);
+  const navigate = useNavigate();
 
   return (
     <DropdownMenu>
@@ -26,7 +28,9 @@ export default function UserMenu() {
           <DropdownMenuItem>{user?.email}</DropdownMenuItem>
           <DropdownMenuItem
             variant="destructive"
-            onClick={() => {
+            onClick={async () => {
+              // Leave the page first: workspace queries throw once the session ends.
+              await navigate({ to: "/" });
               authClient.signOut({
                 fetchOptions: {
                   onSuccess: () => {
