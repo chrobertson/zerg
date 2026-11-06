@@ -85,7 +85,7 @@ function MessageScrollerButton({
   className,
   children,
   render,
-  variant = "secondary",
+  variant = "neutral",
   size = "icon-sm",
   ...props
 }: React.ComponentProps<typeof MessageScrollerPrimitive.Button> &

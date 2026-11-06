@@ -71,7 +71,7 @@ function RootDocument() {
       authClient={authClient}
       initialToken={context.token}
     >
-      <html lang="en" className="dark">
+      <html lang="en">
         <head>
           <HeadContent />
         </head>
@@ -80,7 +80,7 @@ function RootDocument() {
             <Header />
             <Outlet />
           </div>
-          <Toaster richColors />
+          <Toaster richColors theme="light" />
           <TanStackRouterDevtools position="bottom-left" />
           <Scripts />
         </body>

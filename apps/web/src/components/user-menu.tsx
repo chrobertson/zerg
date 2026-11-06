@@ -20,14 +20,14 @@ export default function UserMenu() {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="outline" />}>{user?.name}</DropdownMenuTrigger>
+      <DropdownMenuTrigger render={<Button variant="neutral" />}>{user?.name}</DropdownMenuTrigger>
       <DropdownMenuContent className="bg-card">
         <DropdownMenuGroup>
           <DropdownMenuLabel>My Account</DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem>{user?.email}</DropdownMenuItem>
           <DropdownMenuItem
-            variant="destructive"
+            className="text-destructive"
             onClick={async () => {
               // Leave the page first: workspace queries throw once the session ends.
               await navigate({ to: "/" });

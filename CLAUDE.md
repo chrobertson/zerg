@@ -69,7 +69,8 @@ bun run build
 
 - Reusable primitives go in `packages/ui`. Import them as `@zerg/ui/components/button`.
 - App-specific components go in `apps/web/src/components`.
-- Design tokens and global styles are in `packages/ui/src/styles/globals.css`.
+- Design tokens and global styles are in `packages/ui/src/styles/globals.css`. The look is [neobrutalism.dev](https://neobrutalism.dev) in purple, light only. The stock shadcn tokens such as `--primary` alias the neobrutalism ones such as `--main`, so components without a neobrutalism version stay on theme.
+- Prefer neobrutalism primitives: `npx shadcn@latest add https://neobrutalism.dev/r/<component>.json -c packages/ui --overwrite`. The CLI writes them to `src/components/ui/`, so move them up into `src/components/`.
 - Add shared primitives from the repo root: `npx shadcn@latest add <component> -c packages/ui`. For app-specific blocks, run the CLI from `apps/web`.
 
 ### Environment
