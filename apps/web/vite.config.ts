@@ -5,7 +5,7 @@ import viteReact from "@vitejs/plugin-react";
 import { nitro } from "nitro/vite";
 import { defineConfig } from "vite";
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   server: {
     port: 3001,
   },
@@ -20,7 +20,6 @@ export default defineConfig({
     viteReact(),
   ],
   // These deployments run the standalone build artifact.
-  ssr: {
-    noExternal: true,
-  },
-});
+  // Dev must stay externalized: Vite's module runner can't evaluate CommonJS deps like React.
+  ssr: command === "build" ? { noExternal: true } : undefined,
+}));
