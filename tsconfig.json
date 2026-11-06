@@ -1,0 +1,3 @@
+{
+  "extends": "@zerg/config/tsconfig.base.json"
+}
