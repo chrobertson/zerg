@@ -19,6 +19,8 @@ function createAuth(ctx: GenericCtx<DataModel>) {
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: false,
+      // Sign-up is closed. Set ALLOW_SIGN_UP=true on a deployment to create an account.
+      disableSignUp: process.env.ALLOW_SIGN_UP !== "true",
     },
     plugins: [
       convex({

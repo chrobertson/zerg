@@ -9,12 +9,12 @@ export const Route = createFileRoute("/_auth/dashboard")({
 });
 
 function DashboardContent() {
-  const privateData = useQuery(api.privateData.get);
+  const workspace = useQuery(api.workspaces.current);
 
   return (
     <div>
       <h1>Dashboard</h1>
-      <p>privateData: {privateData?.message}</p>
+      <p>Workspace: {workspace?.name}</p>
       <UserMenu />
     </div>
   );
