@@ -20,6 +20,7 @@ jobs:
 
       # What "good" means lives in .claude/skills/refine-issue/SKILL.md.
       - uses: anthropics/claude-code-action@v1
+        id: claude
         env:
           GH_TOKEN: ${{ github.token }}
         with:
@@ -29,3 +30,11 @@ jobs:
           claude_args: >-
             --model sonnet
             --allowedTools "Read,Glob,Grep,Write,Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh label list:*)"
+
+      # The action hides Claude's output, including why a run failed. Print only
+      # that message: show_full_output would put the whole session in public logs.
+      - name: Show Claude's error
+        if: failure() && steps.claude.outputs.execution_file != ''
+        env:
+          EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
+        run: jq -r '.[] | select(.type == "result") | "::error::\(.result // .subtype)"' "$EXECUTION_FILE"
