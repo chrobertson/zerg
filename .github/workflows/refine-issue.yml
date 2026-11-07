@@ -1,0 +1,31 @@
+name: Refine issue
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  refine:
+    # Public repo: strangers' issues would spend our quota and put untrusted
+    # text in front of a session that can edit issues.
+    if: contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # What "good" means lives in .claude/skills/refine-issue/SKILL.md.
+      - uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}
+          prompt: /refine-issue ${{ github.event.issue.number }}
+          claude_args: >-
+            --model sonnet
+            --allowedTools "Read,Glob,Grep,Write,Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh label list:*)"
