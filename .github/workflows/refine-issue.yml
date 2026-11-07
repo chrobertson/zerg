@@ -3,12 +3,27 @@ name: Refine issue
 on:
   issues:
     types: [opened]
+  issue_comment:
+    types: [created]
+
+# A second reply waits for the run in progress, then is read from the thread.
+concurrency:
+  group: refine-issue-${{ github.event.issue.number }}
 
 jobs:
   refine:
     # Public repo: strangers' issues would spend our quota and put untrusted
     # text in front of a session that can edit issues.
-    if: contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association)
+    # The conversation on an issue is its author's replies, and it ends when the
+    # why is approved. Our own comments use GITHUB_TOKEN, so they trigger nothing.
+    if: >-
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association)
+      && (github.event_name == 'issues' || (
+        !github.event.issue.pull_request
+        && github.event.issue.state == 'open'
+        && github.event.comment.user.login == github.event.issue.user.login
+        && !contains(github.event.issue.labels.*.name, 'why-defined')
+      ))
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
