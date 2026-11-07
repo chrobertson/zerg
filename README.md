@@ -9,7 +9,7 @@ AI agents can write software, but capable agents don't add up to a reliable way 
 - **Give you one place to work with the factory.** Zerg is an app you use to interact with the factory that builds your software.
 - **Orchestrate the agents.** Zerg runs both the agents and the factory they work in.
 - **Bring strong opinions.** Zerg has a view on the right way to develop software. That view shapes the guidance agents receive and how the factory itself is architected and orchestrated.
-- **Work for any kind of software.** A web app, a mainframe system, and a video game are all valid work for the factory. The way of working carries over, whatever is being built.
+- **Focus on web apps.** Web apps are what the factory is built for first, and its way of working is shaped around them.
 
 ## Status
 

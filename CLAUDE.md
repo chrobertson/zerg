@@ -1,6 +1,6 @@
 # Zerg
 
-Zerg is an AI agent software factory: an app for interacting with a factory that orchestrates agents to build software of any kind, and an opinionated take on the right way to develop it. See [README.md](README.md) for the product vision.
+Zerg is an AI agent software factory: an app for interacting with a factory that orchestrates agents to build software, primarily web apps, and an opinionated take on the right way to develop it. See [README.md](README.md) for the product vision.
 
 This repo is developed almost entirely by AI agents, so this file is their main source of context. Keep it accurate when you change something it describes, and keep it high level.
 
@@ -58,6 +58,8 @@ bun run build
 
 - **Dependencies:** versions shared across packages go in the `catalog` in the root `package.json`.
 - **Commits:** use Conventional Commits with a scope, such as `feat(deploy): ...`.
+- **Scope:** build features as small walking skeletons, as light as possible while still doing the job. Get a thin slice working end to end first, and list what's left out rather than designing it. Keep the safety limits that protect production.
+- **Tests:** scenarios and acceptance tests describe what a user can do and observe. Don't assert exact wording, layout, or implementation details.
 
 ### Backend
 
