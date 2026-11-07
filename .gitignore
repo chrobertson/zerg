@@ -55,8 +55,10 @@ lerna-debug.log*
 coverage
 .nyc_output
 
-# Ephemeral plans
+# Ephemeral plans and research
 plans/
+reports/
+research_notes/
 
 # Misc
 *.tgz
