@@ -1,0 +1,64 @@
+name: Define the what
+
+on:
+  issues:
+    types: [labeled]
+  issue_comment:
+    types: [created]
+  # Labels added with GITHUB_TOKEN trigger nothing, so when define-the-why.yml
+  # approves a why it starts this workflow by dispatch instead.
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: Issue number
+        required: true
+
+# A second reply waits for the run in progress, then is read from the thread.
+concurrency:
+  group: define-the-what-${{ github.event.issue.number || inputs.issue }}
+
+jobs:
+  define-the-what:
+    # Public repo: strangers' issues would spend our quota and put untrusted
+    # text in front of a session that can edit issues. Dispatch needs write access.
+    # The conversation starts once the why is approved and ends once the what is.
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || (contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association)
+        && ((github.event_name == 'issues' && github.event.label.name == 'why-defined')
+          || (github.event_name == 'issue_comment'
+            && !github.event.issue.pull_request
+            && github.event.issue.state == 'open'
+            && github.event.comment.user.login == github.event.issue.user.login
+            && contains(github.event.issue.labels.*.name, 'why-defined')
+            && !contains(github.event.issue.labels.*.name, 'what-defined'))))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # What "good" means lives in .claude/skills/define-the-what/SKILL.md.
+      # Web search is allowed so it can find alternatives and competitors' offerings.
+      - uses: anthropics/claude-code-action@v1
+        id: claude
+        env:
+          GH_TOKEN: ${{ github.token }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}
+          prompt: /define-the-what ${{ github.event.issue.number || inputs.issue }}
+          claude_args: >-
+            --model sonnet
+            --allowedTools "Read,Glob,Grep,Write,WebSearch,WebFetch,Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh label list:*)"
+
+      # The action hides Claude's output, including why a run failed. Print only
+      # that message: show_full_output would put the whole session in public logs.
+      - name: Show Claude's error
+        if: failure() && steps.claude.outputs.execution_file != ''
+        env:
+          EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
+        run: jq -r '.[] | select(.type == "result") | "::error::\(.result // .subtype)"' "$EXECUTION_FILE"
