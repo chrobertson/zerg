@@ -64,6 +64,9 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
+          # define-the-why.yml dispatches this run with GITHUB_TOKEN, so its
+          # actor is this bot, which the action rejects unless allowed.
+          allowed_bots: github-actions[bot]
           prompt: /define-the-what ${{ github.event.issue.number || inputs.issue }}
           claude_args: >-
             --model sonnet
