@@ -1,0 +1,83 @@
+name: Define the how
+
+on:
+  issues:
+    types: [labeled]
+  issue_comment:
+    types: [created]
+  # Labels added with GITHUB_TOKEN trigger nothing, so when define-the-what.yml
+  # approves a what it starts this workflow by dispatch instead.
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: Issue number
+        required: true
+
+# A second reply waits for the run in progress, then is read from the thread.
+concurrency:
+  group: define-the-how-${{ github.event.issue.number || inputs.issue }}
+
+jobs:
+  define-the-how:
+    # Public repo: strangers' issues would spend our quota and put untrusted
+    # text in front of a session that can edit issues. Dispatch needs write access.
+    # The conversation starts once the what is approved and ends once the how is.
+    # Closed issues are out of scope until reopened; a dispatch is checked below.
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || (contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association)
+        && github.event.issue.state == 'open'
+        && ((github.event_name == 'issues' && github.event.label.name == 'what-defined')
+          || (github.event_name == 'issue_comment'
+            && !github.event.issue.pull_request
+            && github.event.comment.user.login == github.event.issue.user.login
+            && contains(github.event.issue.labels.*.name, 'what-defined')
+            && !contains(github.event.issue.labels.*.name, 'how-defined'))))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      # A dispatch carries only the issue number, so look up whether it is open.
+      - name: Skip closed issues
+        id: issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ github.event.issue.number || inputs.issue }}
+        run: |
+          state=$(gh issue view "$ISSUE" --repo "$GITHUB_REPOSITORY" --json state --jq .state)
+          echo "open=$([ "$state" = OPEN ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          [ "$state" = OPEN ] || echo "::notice::Issue #$ISSUE is closed, so it is out of scope."
+
+      - if: steps.issue.outputs.open == 'true'
+        uses: actions/checkout@v7
+
+      # What "good" means lives in .claude/skills/define-the-how/SKILL.md.
+      # It reads the code to ground the direction, and may search the web for
+      # libraries or tools the repo doesn't have yet. It never edits files in the
+      # repo: Write is only for .issue-body.md, and nothing is committed.
+      - if: steps.issue.outputs.open == 'true'
+        uses: anthropics/claude-code-action@v1
+        id: claude
+        env:
+          GH_TOKEN: ${{ github.token }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}
+          # define-the-what.yml dispatches this run with GITHUB_TOKEN, so its
+          # actor is this bot, which the action rejects unless allowed.
+          allowed_bots: github-actions[bot]
+          prompt: /define-the-how ${{ github.event.issue.number || inputs.issue }}
+          claude_args: >-
+            --model sonnet
+            --allowedTools "Read,Glob,Grep,Write,WebSearch,WebFetch,Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh label list:*)"
+
+      # The action hides Claude's output, including why a run failed. Print only
+      # that message: show_full_output would put the whole session in public logs.
+      - name: Show Claude's error
+        if: failure() && steps.claude.outputs.execution_file != ''
+        env:
+          EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
+        run: jq -r '.[] | select(.type == "result") | "::error::\(.result // .subtype)"' "$EXECUTION_FILE"
