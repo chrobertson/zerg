@@ -16,11 +16,12 @@ jobs:
     # text in front of a session that can edit issues.
     # The conversation on an issue is its author's replies, and it ends when the
     # why is approved. Our own comments use GITHUB_TOKEN, so they trigger nothing.
+    # Closed issues are out of scope until reopened.
     if: >-
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association)
+      && github.event.issue.state == 'open'
       && (github.event_name == 'issues' || (
         !github.event.issue.pull_request
-        && github.event.issue.state == 'open'
         && github.event.comment.user.login == github.event.issue.user.login
         && !contains(github.event.issue.labels.*.name, 'why-defined')
       ))

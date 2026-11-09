@@ -22,13 +22,14 @@ jobs:
     # Public repo: strangers' issues would spend our quota and put untrusted
     # text in front of a session that can edit issues. Dispatch needs write access.
     # The conversation starts once the why is approved and ends once the what is.
+    # Closed issues are out of scope until reopened; a dispatch is checked below.
     if: >-
       github.event_name == 'workflow_dispatch'
       || (contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association)
+        && github.event.issue.state == 'open'
         && ((github.event_name == 'issues' && github.event.label.name == 'why-defined')
           || (github.event_name == 'issue_comment'
             && !github.event.issue.pull_request
-            && github.event.issue.state == 'open'
             && github.event.comment.user.login == github.event.issue.user.login
             && contains(github.event.issue.labels.*.name, 'why-defined')
             && !contains(github.event.issue.labels.*.name, 'what-defined'))))
@@ -39,11 +40,24 @@ jobs:
       issues: write
 
     steps:
-      - uses: actions/checkout@v7
+      # A dispatch carries only the issue number, so look up whether it is open.
+      - name: Skip closed issues
+        id: issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ github.event.issue.number || inputs.issue }}
+        run: |
+          state=$(gh issue view "$ISSUE" --repo "$GITHUB_REPOSITORY" --json state --jq .state)
+          echo "open=$([ "$state" = OPEN ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          [ "$state" = OPEN ] || echo "::notice::Issue #$ISSUE is closed, so it is out of scope."
+
+      - if: steps.issue.outputs.open == 'true'
+        uses: actions/checkout@v7
 
       # What "good" means lives in .claude/skills/define-the-what/SKILL.md.
       # Web search is allowed so it can find alternatives and competitors' offerings.
-      - uses: anthropics/claude-code-action@v1
+      - if: steps.issue.outputs.open == 'true'
+        uses: anthropics/claude-code-action@v1
         id: claude
         env:
           GH_TOKEN: ${{ github.token }}
