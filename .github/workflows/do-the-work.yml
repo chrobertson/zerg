@@ -69,6 +69,16 @@ jobs:
           ref: master
           token: ${{ secrets.DO_THE_WORK }}
 
+      # Neither is preinstalled, and the worker is allowed to run both below.
+      - if: steps.issue.outputs.go == 'true'
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install actionlint
+        if: steps.issue.outputs.go == 'true'
+        run: |
+          bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.7/scripts/download-actionlint.bash) 1.7.7 "$RUNNER_TEMP/actionlint-bin"
+          echo "$RUNNER_TEMP/actionlint-bin" >> "$GITHUB_PATH"
+
       # What "good" means lives in .claude/skills/do-the-work/SKILL.md. It builds
       # what the approved how describes on $BRANCH, pushes it and opens the PR.
       # Merging is left to the next step, so it has no `gh pr merge`.
@@ -86,7 +96,20 @@ jobs:
           prompt: /do-the-work ${{ inputs.issue }}
           claude_args: >-
             --model sonnet
-            --allowedTools "Read,Glob,Grep,Write,Edit,Bash(git:*),Bash(gh issue view:*),Bash(gh pr create:*),Bash(gh pr view:*),Bash(gh pr list:*)"
+            --allowedTools "Read,Glob,Grep,Write,Edit,Bash(git:*),Bash(gh issue view:*),Bash(gh pr create:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(bun:*),Bash(actionlint:*)"
+
+      # Unattended, a refused command can't be approved, so the agent stops. Say
+      # which command it was, as that is the real reason there is no PR.
+      - name: Find commands the agent was refused
+        id: refused
+        if: always() && steps.claude.outputs.execution_file != ''
+        env:
+          EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
+        run: |
+          refused=$(jq -r '[.[] | select(.type == "result") | .permission_denials[]?
+            | (.tool_input.command // .tool_name) | .[0:100] | gsub("[`\n]"; " ") | "`" + . + "`"]
+            | unique | join(", ")' "$EXECUTION_FILE" || true)
+          echo "refused=$refused" >> "$GITHUB_OUTPUT"
 
       # Squash: one commit per issue on master, linear history, easy to revert
       # whole. There are no checks yet, so this merges at once. Once checks
@@ -96,10 +119,14 @@ jobs:
         if: steps.issue.outputs.go == 'true'
         env:
           GH_TOKEN: ${{ secrets.DO_THE_WORK }}
+          REFUSED: ${{ steps.refused.outputs.refused }}
         run: |
           pr=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state open \
             --json number --jq '.[0].number // empty')
-          if [ -z "$pr" ]; then
+          if [ -z "$pr" ] && [ -n "$REFUSED" ]; then
+            echo "::error::The agent was refused: $REFUSED. It stopped without opening a PR from $BRANCH."
+            exit 1
+          elif [ -z "$pr" ]; then
             echo "::error::No open PR from $BRANCH, so there is nothing to merge."
             exit 1
           fi
@@ -116,12 +143,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          REFUSED: ${{ steps.refused.outputs.refused }}
         run: |
+          reason=
+          [ -z "$REFUSED" ] || reason=" The agent was refused: $REFUSED."
           gh label create pipeline-failed --force --repo "$GITHUB_REPOSITORY" \
             --color B60205 --description "A pipeline step failed or its hand-off did not start"
           gh issue edit "$ISSUE" --repo "$GITHUB_REPOSITORY" --add-label pipeline-failed
           gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body \
-            "The worker agent couldn't land this issue, so it stopped without retrying. See [the run]($RUN_URL). If a PR from \`$BRANCH\` is still open, it may need a rebase onto \`master\`, or close it and dispatch \`do-the-work.yml\` again."
+            "The worker agent couldn't land this issue, so it stopped without retrying.$reason See [the run]($RUN_URL). If a PR from \`$BRANCH\` is still open, it may need a rebase onto \`master\`, or close it and dispatch \`do-the-work.yml\` again."
 
       # The action hides Claude's output, including why a run failed. Print only
       # that message: show_full_output would put the whole session in public logs.
