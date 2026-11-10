@@ -1,0 +1,123 @@
+name: Do the work
+
+on:
+  # Labels added with GITHUB_TOKEN trigger nothing, so when define-the-how.yml
+  # approves a how it starts this workflow by dispatch instead.
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: Issue number
+        required: true
+
+# Runs for the same issue wait their turn; the second then finds the first's PR.
+concurrency:
+  group: do-the-work-${{ inputs.issue }}
+
+jobs:
+  do-the-work:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # GITHUB_TOKEN only reads the issue and comments on it. The checkout, push,
+    # PR and merge use the DO_THE_WORK fine-grained PAT (Contents, Pull requests
+    # and Workflows read/write on this repo): GITHUB_TOKEN can never change
+    # .github/workflows/, and its pushes and PRs would start no checks.
+    permissions:
+      contents: read
+      issues: write
+    env:
+      ISSUE: ${{ inputs.issue }}
+      BRANCH: do-the-work/issue-${{ inputs.issue }}
+
+    steps:
+      # One pass per issue: only open issues with an approved how, and only if
+      # no worker PR for it is open or merged. A dispatch needs write access.
+      - name: Check the issue is ready for work
+        id: issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          info=$(gh issue view "$ISSUE" --repo "$GITHUB_REPOSITORY" \
+            --json state,labels --jq '"\(.state) \(any(.labels[]; .name == "how-defined"))"')
+          state=${info%% *} ready=${info#* }
+          prs=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state all \
+            --json state --jq 'map(select(.state == "OPEN" or .state == "MERGED")) | length')
+          reason=
+          if [ "$state" != OPEN ]; then
+            reason="Issue #$ISSUE is closed, so it is out of scope."
+          elif [ "$ready" != true ]; then
+            reason="Issue #$ISSUE has no approved how (the how-defined label)."
+          elif [ "$prs" != 0 ]; then
+            reason="Issue #$ISSUE already has a worker PR from $BRANCH."
+          fi
+          echo "go=$([ -z "$reason" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          [ -z "$reason" ] || echo "::notice::$reason"
+
+      # A run that failed before opening its PR may have left the branch behind.
+      # Start again from the current master tip rather than build on it.
+      - name: Remove a leftover branch
+        if: steps.issue.outputs.go == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.DO_THE_WORK }}
+        run: |
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$BRANCH" --silent 2>/dev/null; then
+            gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/$BRANCH"
+          fi
+
+      - if: steps.issue.outputs.go == 'true'
+        uses: actions/checkout@v7
+        with:
+          ref: master
+          token: ${{ secrets.DO_THE_WORK }}
+
+      # What "good" means lives in .claude/skills/do-the-work/SKILL.md. It builds
+      # what the approved how describes on $BRANCH, pushes it and opens the PR.
+      # Merging is left to the next step, so it has no `gh pr merge`.
+      - if: steps.issue.outputs.go == 'true'
+        uses: anthropics/claude-code-action@v1
+        id: claude
+        env:
+          GH_TOKEN: ${{ secrets.DO_THE_WORK }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.DO_THE_WORK }}
+          # define-the-how.yml dispatches this run with GITHUB_TOKEN, so its
+          # actor is this bot, which the action rejects unless allowed.
+          allowed_bots: github-actions[bot]
+          prompt: /do-the-work ${{ inputs.issue }}
+          claude_args: >-
+            --model sonnet
+            --allowedTools "Read,Glob,Grep,Write,Edit,Bash(git:*),Bash(gh issue view:*),Bash(gh pr create:*),Bash(gh pr view:*),Bash(gh pr list:*)"
+
+      # Squash: one commit per issue on master, linear history, easy to revert
+      # whole. There are no checks yet, so this merges at once. Once checks
+      # exist, switch to `--auto` with branch protection requiring them.
+      # If master moved and conflicts, stop and say so rather than retry.
+      - name: Merge the PR
+        if: steps.issue.outputs.go == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.DO_THE_WORK }}
+        run: |
+          pr=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state open \
+            --json number --jq '.[0].number // empty')
+          if [ -z "$pr" ]; then
+            echo "::error::No open PR from $BRANCH, so there is nothing to merge."
+            exit 1
+          fi
+          gh pr merge "$pr" --repo "$GITHUB_REPOSITORY" --squash --delete-branch
+
+      - name: Say the work didn't land
+        if: failure() && steps.issue.outputs.go == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body \
+            "The worker agent couldn't land this issue, so it stopped without retrying. See [the run]($RUN_URL). If a PR from \`$BRANCH\` is still open, it may need a rebase onto \`master\`, or close it and dispatch \`do-the-work.yml\` again."
+
+      # The action hides Claude's output, including why a run failed. Print only
+      # that message: show_full_output would put the whole session in public logs.
+      - name: Show Claude's error
+        if: failure() && steps.claude.outputs.execution_file != ''
+        env:
+          EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
+        run: jq -r '.[] | select(.type == "result") | "::error::\(.result // .subtype)"' "$EXECUTION_FILE"
