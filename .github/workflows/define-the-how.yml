@@ -75,6 +75,13 @@ jobs:
             --model sonnet
             --allowedTools "Read,Glob,Grep,Write,WebSearch,WebFetch,Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh label list:*)"
 
+      - name: Clear an earlier failure label
+        if: steps.issue.outputs.open == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ github.event.issue.number || inputs.issue }}
+        run: gh issue edit "$ISSUE" --repo "$GITHUB_REPOSITORY" --remove-label pipeline-failed || true
+
       # Our label adds trigger nothing, so start the work ourselves.
       - name: Do the work once the how is approved
         if: steps.issue.outputs.open == 'true'
@@ -83,8 +90,34 @@ jobs:
           ISSUE: ${{ github.event.issue.number || inputs.issue }}
         run: |
           if gh issue view "$ISSUE" --json labels --jq '.labels[].name' | grep -qx how-defined; then
+            start=$(date -u -d '-10 seconds' +%FT%TZ)
             gh workflow run do-the-work.yml -f issue="$ISSUE"
+            # A dispatch that is accepted but never starts would stall the issue
+            # silently, so look for the run it should have created.
+            for _ in 1 2 3 4 5 6; do
+              sleep 10
+              started=$(gh run list --workflow do-the-work.yml --event workflow_dispatch --limit 20 \
+                --json createdAt --jq "map(select(.createdAt >= \"$start\")) | length")
+              [ "$started" != 0 ] && exit 0
+            done
+            echo "::error::do-the-work.yml did not start after the hand-off for #$ISSUE."
+            exit 1
           fi
+
+      # Tell the author instead of stalling in silence. The label is created here
+      # so no manual setup is needed, and cleared again by the next good run.
+      - name: Say the step failed
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ github.event.issue.number || inputs.issue }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh label create pipeline-failed --force --repo "$GITHUB_REPOSITORY" \
+            --color B60205 --description "A pipeline step failed or its hand-off did not start"
+          gh issue edit "$ISSUE" --repo "$GITHUB_REPOSITORY" --add-label pipeline-failed
+          gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body \
+            "The \"Define the how\" step failed or did not hand over to the next one, so this issue may be stalled. See [the run]($RUN_URL). Comment again, or dispatch \`do-the-work.yml\` for this issue if the how is already approved."
 
       # The action hides Claude's output, including why a run failed. Print only
       # that message: show_full_output would put the whole session in public logs.
