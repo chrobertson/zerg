@@ -36,6 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
+      actions: write
       contents: read
       issues: write
 
@@ -73,6 +74,17 @@ jobs:
           claude_args: >-
             --model sonnet
             --allowedTools "Read,Glob,Grep,Write,WebSearch,WebFetch,Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh label list:*)"
+
+      # Our label adds trigger nothing, so start the work ourselves.
+      - name: Do the work once the how is approved
+        if: steps.issue.outputs.open == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ github.event.issue.number || inputs.issue }}
+        run: |
+          if gh issue view "$ISSUE" --json labels --jq '.labels[].name' | grep -qx how-defined; then
+            gh workflow run do-the-work.yml -f issue="$ISSUE"
+          fi
 
       # The action hides Claude's output, including why a run failed. Print only
       # that message: show_full_output would put the whole session in public logs.
