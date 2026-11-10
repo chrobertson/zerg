@@ -105,12 +105,21 @@ jobs:
           fi
           gh pr merge "$pr" --repo "$GITHUB_REPOSITORY" --squash --delete-branch
 
+      - name: Clear an earlier failure label
+        if: success() && steps.issue.outputs.go == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh issue edit "$ISSUE" --repo "$GITHUB_REPOSITORY" --remove-label pipeline-failed || true
+
       - name: Say the work didn't land
         if: failure() && steps.issue.outputs.go == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
+          gh label create pipeline-failed --force --repo "$GITHUB_REPOSITORY" \
+            --color B60205 --description "A pipeline step failed or its hand-off did not start"
+          gh issue edit "$ISSUE" --repo "$GITHUB_REPOSITORY" --add-label pipeline-failed
           gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body \
             "The worker agent couldn't land this issue, so it stopped without retrying. See [the run]($RUN_URL). If a PR from \`$BRANCH\` is still open, it may need a rebase onto \`master\`, or close it and dispatch \`do-the-work.yml\` again."
 
