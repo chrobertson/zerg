@@ -113,8 +113,8 @@ jobs:
           echo "refused=$refused" >> "$GITHUB_OUTPUT"
 
       # Squash: one commit per issue on master, linear history, easy to revert
-      # whole. There are no checks yet, so this merges at once. Once checks
-      # exist, switch to `--auto` with branch protection requiring them.
+      # whole. `--auto` merges once the required checks (the test-workflows
+      # check, set in a branch ruleset) pass; it needs "Allow auto-merge" on.
       # If master moved and conflicts, stop and say so rather than retry.
       - name: Merge the PR
         if: steps.issue.outputs.go == 'true'
@@ -131,7 +131,7 @@ jobs:
             echo "::error::No open PR from $BRANCH, so there is nothing to merge."
             exit 1
           fi
-          gh pr merge "$pr" --repo "$GITHUB_REPOSITORY" --squash --delete-branch
+          gh pr merge "$pr" --repo "$GITHUB_REPOSITORY" --squash --auto --delete-branch
 
       - name: Clear an earlier failure label
         if: success() && steps.issue.outputs.go == 'true'
