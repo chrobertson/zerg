@@ -1,0 +1,35 @@
+name: Test workflows
+
+# No path filter: a required check skipped by a path filter never reports and
+# would block every pull request that doesn't touch workflows.
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  # The job name is what the branch ruleset requires: keep it `test-workflows`.
+  test-workflows:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install actionlint
+        run: |
+          mkdir -p "$RUNNER_TEMP/actionlint-bin"
+          bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.7/scripts/download-actionlint.bash) 1.7.7 "$RUNNER_TEMP/actionlint-bin"
+          echo "$RUNNER_TEMP/actionlint-bin" >> "$GITHUB_PATH"
+
+      - name: Lint the workflows
+        run: actionlint
+
+      - run: bun install --frozen-lockfile
+
+      - name: Test the workflows
+        run: bun test
