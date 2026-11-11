@@ -76,6 +76,7 @@ jobs:
       - name: Install actionlint
         if: steps.issue.outputs.go == 'true'
         run: |
+          mkdir -p "$RUNNER_TEMP/actionlint-bin"
           bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.7/scripts/download-actionlint.bash) 1.7.7 "$RUNNER_TEMP/actionlint-bin"
           echo "$RUNNER_TEMP/actionlint-bin" >> "$GITHUB_PATH"
 
